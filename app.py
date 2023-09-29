@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import pvlib
-from main import *
 import plotly.express as px
 import plotly.graph_objects as go
 
