@@ -4,16 +4,12 @@ The Solar Panel Sizing Streamlit App is an interactive tool designed to assist u
 
 This app calculates various metrics, including energy generation and payback time, based on user-defined parameters and solar radiation data, providing insights to optimize your solar power setup. 📊
 
-The calculations logic of this app is based on the source repository: [Solar Panel Sizing App](https://github.com/gniewus/solar-panel-sizing-app/).
+## Acknowledgments
 
-## Table of Contents
-- [Installation](#installation-)
-- [Usage](#usage-)
-- [Output](#output-)
-- [Acknowledgments](#acknowledgments-)
-- [License](#license-)
+- The calculation logic is based on the [Solar Panel Sizing App](https://github.com/gniewus/solar-panel-sizing-app/) repository.
+- Radiation data is taken from the [European Photovoltaic Geographical Information System](https://re.jrc.ec.europa.eu/api/v5_2/) using the [pvlib](https://pvlib-python.readthedocs.io/en/stable/) library.
 
-## Installation 🚀
+## Development
 
 1. Clone the repository to your local machine:
 
@@ -54,11 +50,6 @@ The app generates three interactive plots to help you analyze your solar panel s
 2. **Energy Generation and payoff time vs. panel size:** This plot illustrates the relationship between panel size and energy generation per year, along with the payback time.
 
 3. **Return over time vs. panel size:** This plot displays the balance evolution in euros for different panel sizes, allowing you to compare the financial aspects of your solar power plant.
-
-## Acknowledgments 🙏
-
-- The calculations logic is based on the [Solar Panel Sizing App](https://github.com/gniewus/solar-panel-sizing-app/) repository.
-- Radiation data is taken from the [European Photovoltaic Geographical Information System](https://re.jrc.ec.europa.eu/api/v5_2/) using the [pvlib](https://pvlib-python.readthedocs.io/en/stable/) library.
 
 ## License 📜
 
