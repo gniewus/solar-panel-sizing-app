@@ -3,7 +3,7 @@ import pandas as pd
 import pvlib
 import plotly.express as px
 import plotly.graph_objects as go
-
+import numpy as np
 st.set_page_config( page_title='Balcony Solar Power Tool ', page_icon='🌞', initial_sidebar_state="expanded")
 
 @st.cache_data()
@@ -159,10 +159,7 @@ def app():
                 </br>
                 Given user-defined parameters and solar radiation data, it calculates various metrics, including energy generation and ROI overtime.              
                 """,unsafe_allow_html=True)
-    st.markdown("""
-                - Credits to __riparise__ fot the original repo with calculation logic: [solar-panel-sizing-tool](https://github.com/riparise/solar-panel-sizing-tool/)
-                - Author: [gniewus](https://www.linkedin.com/in/tomtkaczyk/)
-                """)
+
     st.markdown("")
     # Input widgets for each parameter    
     with st.sidebar:
@@ -187,7 +184,8 @@ def app():
         horizon_data = st.multiselect('Horizon Data', options=[90, 20], default=[90, 90, 90, 20, 20, 20, 90, 90])
     
         panel_sizes = st.multiselect('Panel Sizes (W)', options=[600, 800, 1000, 1100, 1200, 1300, 1400], default=[600, 800, 1000, 1100, 1200, 1300, 1400])
-    
+        st.divider()
+        st.write(' Author: [gniewus](https://www.linkedin.com/in/tomtkaczyk/)')
     #st.subheader('Solar Panel Study')
 
     btn = st.button('Submit','submit')
@@ -211,6 +209,9 @@ def app():
         # Plot and display results
         plot_results(panel_sizes, energy_generated, payback_time, balances, solar_data, max_inverter_power, panel_angle, panel_azimuth)
         st.map((pd.DataFrame([(latitude, longitude)],columns= ['lat','lon'])), zoom=13,use_container_width=True)
-
+        st.markdown("""
+            - Credits to __riparise__ fot the original repo with calculation logic: [solar-panel-sizing-tool](https://github.com/riparise/solar-panel-sizing-tool/)
+            - Author: [gniewus](https://www.linkedin.com/in/tomtkaczyk/)
+            """)
 if __name__ == '__main__':
     app()
