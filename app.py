@@ -4,7 +4,7 @@ import pvlib
 import plotly.express as px
 import plotly.graph_objects as go
 
-st.set_page_config(layout="wide", page_title='Balcony Solar Power Tool ', page_icon='🌞', initial_sidebar_state="expanded")
+st.set_page_config( page_title='Balcony Solar Power Tool ', page_icon='🌞', initial_sidebar_state="expanded")
 
 @st.cache_data()
 def get_solar_radiation_data(latitude, longitude, panel_angle, panel_azimuth, pv_tech, horizon_data, system_losses):
@@ -115,7 +115,6 @@ def plot_balance_over_time(panel_sizes, balances, solar_data):
     return fig
 
 
-
 def plot_results(panel_sizes, energy_generated, payback_time, balances, solar_data, max_inverter_power, panel_angle, panel_azimuth, show=False):
     # Plot average solar radiation
     avg_gen_fig = plot_average_generation(solar_data)
@@ -129,13 +128,37 @@ def plot_results(panel_sizes, energy_generated, payback_time, balances, solar_da
     st.plotly_chart(balance_over_time_fig,use_container_width=True)
 
 
+def calculate_trade_off(solar_data, max_inverter_power, panel_price, installation_costs,
+                        inverter_efficiency, energy_cost_per_kwh, subsidy_amount, panel_sizes, unused_energy):
+    energy_generated, payback_time, balances = [], [], []
+    if type(panel_price) is list and len(panel_price) != len(panel_sizes):
+        raise ValueError('Panel price is not a single coefficient, but also not the same size as the panel sizes')
+
+    num_years = (solar_data.index[-1] - solar_data.index[0]).days / 365
+
+    for i, panel_size in enumerate(panel_sizes):
+        # Calculate energy generation and financial metrics
+        energy_per_hour = np.minimum(panel_size * solar_data['P'], max_inverter_power)
+        if type(panel_price) is list:
+            initial_cost = panel_price[i] + installation_costs
+        else:
+            initial_cost = panel_size * panel_price + installation_costs
+        income = energy_per_hour * inverter_efficiency * energy_cost_per_kwh * (1-unused_energy) / 1000
+        balances.append(min(-initial_cost + subsidy_amount, 0) + np.cumsum(income))
+
+        total_energy_generated = sum(energy_per_hour) * inverter_efficiency * (1-unused_energy)
+        energy_generated.append(total_energy_generated / (num_years * 1000))
+
+        payback_time.append(max(initial_cost - subsidy_amount, 0) / (energy_generated[-1] * energy_cost_per_kwh))
+
+    return energy_generated, payback_time, balances
 
 def app():
     st.title("Solar Panel Study")
     st.markdown("""This app wil help you analyze the ideal size of solar panels, tailored for the Berlin subsidy program for mini balcony solar powerplants.
-                Given user-defined parameters, it calculates various metrics, including energy generation and payback time, based on  parameters and solar radiation data. 
-                It provides insights to optimize your solar power setup.
-                """)
+                </br>
+                Given user-defined parameters and solar radiation data, it calculates various metrics, including energy generation and ROI overtime.              
+                """,unsafe_allow_html=True)
     st.markdown("""
                 - Credits to __riparise__ fot the original repo with calculation logic: [solar-panel-sizing-tool](https://github.com/riparise/solar-panel-sizing-tool/)
                 - Author: [gniewus](https://www.linkedin.com/in/tomtkaczyk/)
