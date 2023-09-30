@@ -4,7 +4,14 @@ import pvlib
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-st.set_page_config( page_title='Balcony Solar Power Tool ', page_icon='🌞', initial_sidebar_state="expanded")
+import plotly.io as pio
+import tempfile, plotly
+from datetime import datetime,timedelta
+
+
+st.set_page_config(layout='wide', page_title='Balcony Solar Power Tool ', page_icon='🌞', initial_sidebar_state="expanded"
+                                  ,menu_items={ 'About': "mailto: tom.tkaczyk11@gmail.com"})
+                   
 
 @st.cache_data()
 def get_solar_radiation_data(latitude, longitude, panel_angle, panel_azimuth, pv_tech, horizon_data, system_losses):
@@ -31,7 +38,33 @@ def get_solar_radiation_data(latitude, longitude, panel_angle, panel_azimuth, pv
 
 
 
+def report_download_btn(figs: list[plotly.graph_objects.Figure],params_df: pd.DataFrame):
+    # Convert figures to HTML
+    html_figs = [pio.to_html(fig, full_html=False,include_plotlyjs=False) for fig in figs]
+    # Create a temporary file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.html', mode='w+t')
+    
+    with open(temp_file.name, "rb") as file:
+        temp_file.write('<html><head><title> Berlin Balcony solar panel ROI </title></head><body>')
+        temp_file.write('<h3> Parameters </h3>')
+        temp_file.write(params_df.to_html())
+        temp_file.write('<h3> Results </h3>')
+        for f in html_figs:
+            temp_file.write(f)
+        temp_file.write('</body></html>')
+        
+        st.download_button(
+            label="Download this report as HTML",
+            data=file,
+            file_name="report.html",
+            mime="application/html",
+            use_container_width=True
+        ) 
 
+    return temp_file.name
+
+
+@st.cache_data(ttl='30s')
 def plot_average_generation(solar_data):
     solar_data['Month'] = solar_data.index.month
     seasons = {
@@ -63,7 +96,9 @@ def plot_average_generation(solar_data):
     )
     return fig
 
+@st.cache_data(ttl='30s')
 def plot_energy_vs_size(panel_sizes, energy_generated, payback_time):
+
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(x=panel_sizes, y=energy_generated, mode='lines+markers', name='Energy Generated', yaxis='y1', line=dict(color='blue')))
@@ -77,34 +112,22 @@ def plot_energy_vs_size(panel_sizes, energy_generated, payback_time):
     )
     return fig
 
-
-def plot_energy_vs_size(panel_sizes, energy_generated, payback_time):
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(x=panel_sizes, y=energy_generated, mode='lines+markers', name='Energy Generated', yaxis='y1', line=dict(color='blue')))
-    fig.add_trace(go.Scatter(x=panel_sizes, y=payback_time, mode='lines+markers', name='Payback Time', yaxis='y2', line=dict(color='red')))
-
-    fig.update_layout(
-        title='Energy Generation and payoff time vs. panel size',
-        xaxis_title='Panel Size [W]',
-        yaxis_title='Energy Generation [kWh/Year]',
-        yaxis2=dict(title='Payback Time [Years]', overlaying='y', side='right')
-    )
-    return fig
-
+st.cache_data(ttl='30s')
 def plot_balance_over_time(panel_sizes, balances, solar_data):
     fig = go.Figure()
 
     for i, balance in enumerate(balances):
-        years_since_start = (solar_data.index - solar_data.index[0]).days / 365
+
+        time_frame = [datetime.today()+ x for x in (solar_data.index - solar_data.index[0])]
         label = f'Panel Size: {panel_sizes[i]} W'
-        fig.add_trace(go.Scatter(x=years_since_start, y=balance, mode='lines', name=label, line=dict(color=px.colors.sequential.Viridis[i])))
+        fig.add_trace(go.Scatter(x=time_frame, y=balance, mode='lines', name=label, line=dict(color=px.colors.sequential.Viridis[i]),hovertemplate = '%{y:.2f}EUR'))
 
     fig.add_shape(
         type='line',
         y0=0, y1=0,
-        x0=min(years_since_start), x1=max(years_since_start),
-        line=dict(color='White')
+        x0=min(time_frame), x1=max(time_frame),
+        line=dict(color='darkgrey', width=2, dash='dash'),
+        
     )
 
     fig.update_layout(
@@ -116,18 +139,28 @@ def plot_balance_over_time(panel_sizes, balances, solar_data):
 
 
 def plot_results(panel_sizes, energy_generated, payback_time, balances, solar_data, max_inverter_power, panel_angle, panel_azimuth, show=False):
-    # Plot average solar radiation
-    avg_gen_fig = plot_average_generation(solar_data)
-    # Plot energy generation versus panel size and payback time
+
+    msg = "Calculating... "
+    prgrs=st.progress(1,msg) 
+    prgrs.progress(10, msg)
     energy_vs_size_fig = plot_energy_vs_size(panel_sizes, energy_generated, payback_time)
-    # Plot balance over time for different panel sizes with labels
+    prgrs.progress(30,msg)
+    avg_gen_fig = plot_average_generation(solar_data)
+    prgrs.progress(60,msg)
     balance_over_time_fig = plot_balance_over_time(panel_sizes, balances, solar_data)
-
-    st.plotly_chart(avg_gen_fig,use_container_width=True)
-    st.plotly_chart(energy_vs_size_fig,use_container_width=True)
+    prgrs.progress(90,msg)
     st.plotly_chart(balance_over_time_fig,use_container_width=True)
+    prgrs.progress(93,'Plotting...')
+    st.plotly_chart(energy_vs_size_fig,use_container_width=True)
+    prgrs.progress(96)
+    st.plotly_chart(avg_gen_fig,use_container_width=True)
+    prgrs.progress(100)
+    prgrs.empty()
+
+    return avg_gen_fig, energy_vs_size_fig, balance_over_time_fig
 
 
+@st.cache_data(persist=True)
 def calculate_trade_off(solar_data, max_inverter_power, panel_price, installation_costs,
                         inverter_efficiency, energy_cost_per_kwh, subsidy_amount, panel_sizes, unused_energy):
     energy_generated, payback_time, balances = [], [], []
@@ -154,45 +187,46 @@ def calculate_trade_off(solar_data, max_inverter_power, panel_price, installatio
     return energy_generated, payback_time, balances
 
 def app():
-    st.title("Solar Panel Study")
-    st.markdown("""This app wil help you analyze the ideal size of solar panels, tailored for the Berlin subsidy program for mini balcony solar powerplants.
+    st.title("🌞 Balcony Solar Panel RIO Calculator 🌞")
+    st.markdown("""<p>This app wil help you analyze the ideal size of solar panels, tailored for the Berlin subsidy program for mini balcony solar powerplants.
                 </br>
-                Given user-defined parameters and solar radiation data, it calculates various metrics, including energy generation and ROI overtime.              
+                Given user-defined parameters and solar radiation data, it calculates various metrics, including energy generation and ROI overtime</p>.              
                 """,unsafe_allow_html=True)
 
-    st.markdown("")
-    # Input widgets for each parameter    
     with st.sidebar:
-
-        st.header("Parameters")
+        st.subheader("Parameters")
         c1, c2 = st.columns(2)
-        longitude = c1.number_input('Longitude', value=13.40)
-        latitude = c2.number_input('Latitude', value=52.52)
-        panel_price = c1.number_input('Panel Price (EUR per W)', min_value=0.0, value=0.52)
-        installation_costs = c2.number_input('Installation Costs (EUR)', min_value=0, value=30)
-        energy_cost_per_kwh = st.number_input('Energy Cost per kWh (EUR)', min_value=0.0, value=0.35)
-        subsidy_amount = st.number_input('Subsidy Amount (EUR)', min_value=0, value=500)
-        max_inverter_power = st.number_input('Max Inverter Power (W)', min_value=0, value=600)
-        panel_azimuth = st.slider('Panel Azimuth', min_value=0, max_value=360, value=245)
-        panel_angle = st.slider('Panel Angle', min_value=0, max_value=90, value=90)
-        inverter_efficiency = st.slider('Inverter Efficiency', min_value=0.0, max_value=1.0, value=0.91)
         
-    
-        pv_tech = st.selectbox('PV Tech', options=['crystSi', 'CIS', 'CdTe', 'Unknown'], index=0)
-        system_losses = st.slider('System Losses', min_value=0.0, max_value=1.0, value=0.05)
-        unused_energy = st.slider('Unused Energy', min_value=0.0, max_value=1.0, value=0.4)
-        horizon_data = st.multiselect('Horizon Data', options=[90, 20], default=[90, 90, 90, 20, 20, 20, 90, 90])
-    
-        panel_sizes = st.multiselect('Panel Sizes (W)', options=[600, 800, 1000, 1100, 1200, 1300, 1400], default=[600, 800, 1000, 1100, 1200, 1300, 1400])
+        longitude = c1.number_input('Longitude', value=13.40, help="Longitude of your location in degrees. For Berlin, it's approximately 13.40.")
+        latitude = c2.number_input('Latitude', value=52.52, help="Latitude of your location in degrees. For Berlin, it's approximately 52.52.")
+        
+        panel_price = c1.number_input('Panel Price (EUR per W)', min_value=0.0, value=0.52, help="Costs of the solar panels in EUR per Watt of nominal power.")
+        installation_costs = c2.number_input('Installation Costs (EUR)', min_value=0, value=30, help="Additional costs associated with the installation of the solar panels in EUR.")
+        
+        energy_cost_per_kwh = st.number_input('Energy Cost per kWh (EUR)', min_value=0.0, value=0.35, help="Energy rates in EUR per kWh.")
+        subsidy_amount = st.number_input('Subsidy Amount (EUR)', min_value=0, value=500, help="Subsidy amount received in EUR.")
+        
+        max_inverter_power = st.number_input('Max Inverter Power (W)', min_value=0, value=600, help="The maximum power output of the inverter in Watts.")
+        panel_azimuth = st.slider('Panel Azimuth', min_value=0, max_value=360, value=245, help="The azimuth angle of your solar panels in degrees (0=north, 90=east, 180=south, 270=west).")
+        
+        panel_angle = st.slider('Panel Angle', min_value=0, max_value=90, value=90, help="The tilt angle of your solar panels in degrees (0=horizontal, 90=vertical).")
+        inverter_efficiency = st.slider('Inverter Efficiency', min_value=0.0, max_value=1.0, value=0.91, help="The average efficiency of the inverter.")
+        
+        pv_tech = st.selectbox('PV Tech', options=['crystSi', 'CIS', 'CdTe', 'Unknown'], index=0, help="The technology of the photovoltaic cells. Options are 'crystSi', 'CIS', 'CdTe', or 'Unknown'.")
+        system_losses = st.slider('System Losses', min_value=0.0, max_value=1.0, value=0.05, help="Other losses that are not associated with inverter efficiency like panels degradation, glass transmittance, dirt, and more.")
+        
+        unused_energy = st.slider('Unused Energy', min_value=0.0, max_value=1.0, value=0.4, help="Percentage of the energy generated that is not directly used, assuming there is no buyback.")
+        horizon_data = st.multiselect('Horizon Data', options=[90, 20], default=[90, 90, 90, 20, 20, 20, 90, 90], help="List of elevation of horizon in degrees, at arbitrary number of equally spaced azimuths clockwise from north.")
+        
+        panel_sizes = st.multiselect('Panel Sizes (W)', options=[600, 800, 1000, 1100, 1200, 1300, 1400], default=[600, 800, 1000, 1100, 1200, 1300, 1400], help="List of the panel sizes to be analyzed in Watts.")
+        
         st.divider()
-        st.write(' Author: [gniewus](https://www.linkedin.com/in/tomtkaczyk/)')
-    #st.subheader('Solar Panel Study')
+        
+        st.write('Author: [gniewus](https://www.linkedin.com/in/tomtkaczyk/)')
 
-    btn = st.button('Submit','submit')
-    # Convert string inputs to proper format
- 
-    
-    if btn:
+    btn = st.button('Submit','submit',type='primary',use_container_width=True)
+
+    if btn:        
         # Retrieve solar radiation data
         solar_data = get_solar_radiation_data(latitude, longitude, panel_angle, panel_azimuth, pv_tech, horizon_data, system_losses)
         
@@ -206,9 +240,11 @@ def app():
                                                                        subsidy_amount,
                                                                        panel_sizes, unused_energy)
         
+        params_dict = {'longitude': longitude,'latitude': latitude,'panel_price': panel_price,'installation_costs': installation_costs,'energy_cost_per_kwh': energy_cost_per_kwh,'subsidy_amount': subsidy_amount,'max_inverter_power': max_inverter_power,'panel_azimuth': panel_azimuth,'panel_angle': panel_angle,'inverter_efficiency': inverter_efficiency,'pv_tech': pv_tech,'system_losses': system_losses,'unused_energy': unused_energy,'horizon_data': horizon_data,'panel_sizes': panel_sizes}
+        params_df = pd.DataFrame.from_dict(params_dict,orient='index',columns=['Value']).T
         # Plot and display results
-        plot_results(panel_sizes, energy_generated, payback_time, balances, solar_data, max_inverter_power, panel_angle, panel_azimuth)
-        st.map((pd.DataFrame([(latitude, longitude)],columns= ['lat','lon'])), zoom=13,use_container_width=True)
+        figs = plot_results(panel_sizes, energy_generated, payback_time, balances, solar_data, max_inverter_power, panel_angle, panel_azimuth)
+        report_download_btn(figs,params_df)
         st.markdown("""
             - Credits to __riparise__ fot the original repo with calculation logic: [solar-panel-sizing-tool](https://github.com/riparise/solar-panel-sizing-tool/)
             - Author: [gniewus](https://www.linkedin.com/in/tomtkaczyk/)
