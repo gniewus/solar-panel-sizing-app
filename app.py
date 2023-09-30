@@ -40,7 +40,7 @@ def get_solar_radiation_data(latitude, longitude, panel_angle, panel_azimuth, pv
 
 def report_download_btn(figs: list[plotly.graph_objects.Figure],params_df: pd.DataFrame):
     # Convert figures to HTML
-    html_figs = [pio.to_html(fig, full_html=False,include_plotlyjs=False) for fig in figs]
+    html_figs = [pio.to_html(fig, full_html=False,include_plotlyjs=True) for fig in figs]
     # Create a temporary file
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.html', mode='w+t')
     
